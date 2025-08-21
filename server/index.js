@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { v2 as cloudinary } from 'cloudinary';
 
 const app = express();
 app.use(cors());
@@ -15,21 +16,26 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = process.env.PORT || 5174;
 const MONGODB_URI = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
+// Configure Cloudinary if creds provided
+if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
+    cloudinary.config({
+        cloud_name: CLOUDINARY_CLOUD_NAME,
+        api_key: CLOUDINARY_API_KEY,
+        api_secret: CLOUDINARY_API_SECRET,
+    });
+}
 
 // ===== Uploads (local disk) =====
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname || '') || '.jpg';
-        cb(null, `${unique}${ext}`);
-    },
-});
+// Use memory storage when targeting cloud uploads; keep fileFilter and limits
 const upload = multer({
-    storage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
     fileFilter: (_req, file, cb) => {
         if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true);
@@ -48,6 +54,7 @@ const itemSchema = new mongoose.Schema(
         category: { type: String, required: true },
         status: { type: String, enum: ['Washed', 'Unwashed', 'Lost/Unused'], default: 'Washed' },
         imageUrl: { type: String, default: null },
+        imagePublicId: { type: String, default: null },
     },
     { timestamps: true }
 );
@@ -140,10 +147,29 @@ app.post('/api/auth/login', async (req, res, next) => {
 });
 
 // Upload endpoint (multipart/form-data field name: 'image')
-app.post('/api/upload', auth, upload.single('image'), (req, res, next) => {
+app.post('/api/upload', auth, upload.single('image'), async (req, res, next) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'image file required' });
-        const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        // Prefer Cloudinary when configured
+        if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
+            const folder = `clothes-organiser/${req.user.id}`;
+            const uploadFromBuffer = () => new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream({ folder }, (err, result) => {
+                    if (err) return reject(err);
+                    resolve(result);
+                });
+                stream.end(req.file.buffer);
+            });
+            const result = await uploadFromBuffer();
+            return res.status(201).json({ url: result.secure_url || result.url, publicId: result.public_id });
+        }
+        // Fallback to local disk when Cloudinary is not configured
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(req.file.originalname || '') || '.jpg';
+        const filename = `${unique}${ext}`;
+        const filePath = path.join(UPLOAD_DIR, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        const url = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
         res.status(201).json({ url });
     } catch (e) {
         next(e);
@@ -182,8 +208,12 @@ app.put('/api/items/:id', auth, async (req, res, next) => {
 app.delete('/api/items/:id', auth, async (req, res, next) => {
     try {
         const doc = await Item.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
-        // Best-effort cleanup of local uploaded image file
-        if (doc?.imageUrl) {
+        // Cleanup uploaded image (Cloudinary or local)
+        if (doc?.imagePublicId && CLOUDINARY_CLOUD_NAME) {
+            try {
+                await cloudinary.uploader.destroy(doc.imagePublicId);
+            } catch { }
+        } else if (doc?.imageUrl) {
             try {
                 let pathname;
                 try {

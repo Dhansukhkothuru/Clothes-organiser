@@ -10,12 +10,13 @@
     "server": "node server/index.js"
   },
   "dependencies": {
-  "bcryptjs": "^2.4.3",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "framer-motion": "^11.0.0",
-  "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.441.0",
     "mongoose": "^8.17.1",
     "multer": "^2.0.2",

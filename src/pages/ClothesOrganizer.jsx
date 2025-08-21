@@ -47,6 +47,8 @@ export default function ClothesOrganizer({ onLogout }) {
   const [showCatPicker, setShowCatPicker] = useState(false);
   const catMenuRef = useRef(null);
   const [user, setUser] = useState(() => getStoredUser());
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const statuses = ["All", "Washed", "Unwashed", "Lost/Unused"];
 
@@ -57,23 +59,43 @@ export default function ClothesOrganizer({ onLogout }) {
     }
   };
 
-  // Upload image File to server if needed, return a URL string or null
+  // Upload image with progress using XMLHttpRequest. Returns {url, publicId} or null.
   const uploadImageIfNeeded = async (img) => {
     try {
       if (!img) return null;
-      if (typeof img === "string") return img; // already a URL
+      if (typeof img === "string") return img; // already a URL from server
+      const token = getToken();
       const form = new FormData();
       form.append("image", img);
-      const token =
-        localStorage.getItem("token") || sessionStorage.getItem("token");
-      const res = await fetch(`${API_URL}/upload`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: form,
+      setUploadProgress(0);
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_URL}/upload`);
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+          }
+        };
+        xhr.onload = () => {
+          try {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const data = JSON.parse(xhr.responseText || "{}");
+              resolve({
+                url: data.url || null,
+                publicId: data.publicId || null,
+              });
+            } else {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          } catch (err) {
+            reject(err);
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.send(form);
       });
-      if (!res.ok) throw new Error("Upload failed");
-      const data = await res.json();
-      return data.url || null;
     } catch (e) {
       console.warn("Image upload failed, keeping local image only", e);
       return null;
@@ -126,18 +148,27 @@ export default function ClothesOrganizer({ onLogout }) {
   const handleAddItem = async () => {
     if (newItem.name.trim() === "") return;
     if (!newItem.category || newItem.category.trim() === "") return; // require a category
+    if (isSaving) return; // guard against double clicks
+    setIsSaving(true);
     if (editingIndex !== null) {
       const updated = [...items];
       // Update on server
       try {
         const token =
           localStorage.getItem("token") || sessionStorage.getItem("token");
-        const imageUrl = await uploadImageIfNeeded(newItem.image);
+        const uploaded = await uploadImageIfNeeded(newItem.image);
         const payload = {
           name: newItem.name,
           category: newItem.category,
           status: newItem.status,
-          imageUrl,
+          imageUrl:
+            uploaded && uploaded.url
+              ? uploaded.url
+              : typeof newItem.image === "string"
+              ? newItem.image
+              : null,
+          imagePublicId:
+            uploaded && uploaded.publicId ? uploaded.publicId : undefined,
         };
         const id = updated[editingIndex].id;
         const res = await fetch(`${API_URL}/items/${id}`, {
@@ -172,12 +203,19 @@ export default function ClothesOrganizer({ onLogout }) {
       try {
         const token =
           localStorage.getItem("token") || sessionStorage.getItem("token");
-        const imageUrl = await uploadImageIfNeeded(newItem.image);
+        const uploaded = await uploadImageIfNeeded(newItem.image);
         const payload = {
           name: newItem.name,
           category: newItem.category,
           status: newItem.status,
-          imageUrl,
+          imageUrl:
+            uploaded && uploaded.url
+              ? uploaded.url
+              : typeof newItem.image === "string"
+              ? newItem.image
+              : null,
+          imagePublicId:
+            uploaded && uploaded.publicId ? uploaded.publicId : undefined,
         };
         const res = await fetch(`${API_URL}/items`, {
           method: "POST",
@@ -205,6 +243,8 @@ export default function ClothesOrganizer({ onLogout }) {
     setNewCategory("");
     setShowCatPicker(false);
     setIsModalOpen(false);
+    setUploadProgress(0);
+    setIsSaving(false);
   };
 
   const handleDelete = async (idToDelete) => {
@@ -569,12 +609,42 @@ export default function ClothesOrganizer({ onLogout }) {
                     setPreview(null);
                     setNewItem(makeBlankItem());
                     setDragActive(false);
+                    setUploadProgress(0);
+                    setIsSaving(false);
                   }}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleAddItem}>
-                  {editingIndex !== null ? "Save" : "Add"}
+                <Button onClick={handleAddItem} disabled={isSaving}>
+                  {isSaving ? (
+                    <span className="inline-flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-5 w-5 text-current"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        ></path>
+                      </svg>
+                      Uploading...
+                    </span>
+                  ) : editingIndex !== null ? (
+                    "Save"
+                  ) : (
+                    "Add"
+                  )}
                 </Button>
               </div>
             </div>
