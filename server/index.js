@@ -43,6 +43,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 // Schemas
 const itemSchema = new mongoose.Schema(
     {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
         name: { type: String, required: true },
         category: { type: String, required: true },
         status: { type: String, enum: ['Washed', 'Unwashed', 'Lost/Unused'], default: 'Washed' },
@@ -52,9 +53,13 @@ const itemSchema = new mongoose.Schema(
 );
 
 const categorySchema = new mongoose.Schema(
-    { name: { type: String, required: true, unique: true } },
+    {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+        name: { type: String, required: true },
+    },
     { timestamps: true }
 );
+categorySchema.index({ userId: 1, name: 1 }, { unique: true });
 
 const Item = mongoose.model('Item', itemSchema);
 const Category = mongoose.model('Category', categorySchema);
@@ -68,6 +73,20 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 const User = mongoose.model('User', userSchema, 'users');
+
+// Auth middleware
+function auth(req, res, next) {
+    const hdr = req.headers.authorization || '';
+    const [, token] = hdr.split(' ');
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        req.user = { id: payload.id, username: payload.username };
+        next();
+    } catch (e) {
+        return res.status(401).json({ error: 'unauthorized' });
+    }
+}
 
 // Base + health
 app.get('/api', (_req, res) => {
@@ -121,7 +140,7 @@ app.post('/api/auth/login', async (req, res, next) => {
 });
 
 // Upload endpoint (multipart/form-data field name: 'image')
-app.post('/api/upload', upload.single('image'), (req, res, next) => {
+app.post('/api/upload', auth, upload.single('image'), (req, res, next) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'image file required' });
         const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
@@ -132,27 +151,27 @@ app.post('/api/upload', upload.single('image'), (req, res, next) => {
 });
 
 // Items CRUD
-app.get('/api/items', async (_req, res, next) => {
+app.get('/api/items', auth, async (req, res, next) => {
     try {
-        const items = await Item.find().sort({ createdAt: 1 }).lean();
+        const items = await Item.find({ userId: req.user.id }).sort({ createdAt: 1 }).lean();
         res.json(items);
     } catch (e) {
         next(e);
     }
 });
 
-app.post('/api/items', async (req, res, next) => {
+app.post('/api/items', auth, async (req, res, next) => {
     try {
-        const doc = await Item.create(req.body);
+        const doc = await Item.create({ ...req.body, userId: req.user.id });
         res.status(201).json(doc);
     } catch (e) {
         next(e);
     }
 });
 
-app.put('/api/items/:id', async (req, res, next) => {
+app.put('/api/items/:id', auth, async (req, res, next) => {
     try {
-        const doc = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const doc = await Item.findOneAndUpdate({ _id: req.params.id, userId: req.user.id }, req.body, { new: true });
         if (!doc) return res.status(404).json({ error: 'Not found' });
         res.json(doc);
     } catch (e) {
@@ -160,9 +179,9 @@ app.put('/api/items/:id', async (req, res, next) => {
     }
 });
 
-app.delete('/api/items/:id', async (req, res, next) => {
+app.delete('/api/items/:id', auth, async (req, res, next) => {
     try {
-        const doc = await Item.findByIdAndDelete(req.params.id);
+        const doc = await Item.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
         // Best-effort cleanup of local uploaded image file
         if (doc?.imageUrl) {
             try {
@@ -186,33 +205,33 @@ app.delete('/api/items/:id', async (req, res, next) => {
 });
 
 // Categories
-app.get('/api/categories', async (_req, res, next) => {
+app.get('/api/categories', auth, async (req, res, next) => {
     try {
-        const cats = await Category.find().sort({ name: 1 }).lean();
+        const cats = await Category.find({ userId: req.user.id }).sort({ name: 1 }).lean();
         res.json(cats);
     } catch (e) {
         next(e);
     }
 });
 
-app.post('/api/categories', async (req, res, next) => {
+app.post('/api/categories', auth, async (req, res, next) => {
     const name = (req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'name required' });
     try {
-        const doc = await Category.create({ name });
+        const doc = await Category.create({ name, userId: req.user.id });
         res.status(201).json(doc);
     } catch (e) {
         if (e.code === 11000) {
-            const doc = await Category.findOne({ name }).lean();
+            const doc = await Category.findOne({ name, userId: req.user.id }).lean();
             return res.status(200).json(doc);
         }
         next(e);
     }
 });
 
-app.delete('/api/categories/:name', async (req, res, next) => {
+app.delete('/api/categories/:name', auth, async (req, res, next) => {
     try {
-        await Category.deleteOne({ name: req.params.name });
+        await Category.deleteOne({ name: req.params.name, userId: req.user.id });
         res.status(204).end();
     } catch (e) {
         next(e);

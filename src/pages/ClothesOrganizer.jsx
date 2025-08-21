@@ -6,6 +6,18 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function ClothesOrganizer({ onLogout }) {
   const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5174/api";
+  const getStoredUser = () => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem("user") || "null") ||
+        JSON.parse(sessionStorage.getItem("user") || "null")
+      );
+    } catch {
+      return null;
+    }
+  };
+  const getToken = () =>
+    localStorage.getItem("token") || sessionStorage.getItem("token");
   const makeId = () =>
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -13,17 +25,17 @@ export default function ClothesOrganizer({ onLogout }) {
   const makeBlankItem = () => ({
     id: makeId(),
     name: "",
-    category: categories[0] || "Shirts",
+    category: categories[0] || "",
     status: "Washed",
     image: null,
   });
   const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState(["Shirts", "Pants"]);
+  const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
   const [newItem, setNewItem] = useState({
     id: makeId(),
     name: "",
-    category: "Shirts",
+    category: "",
     status: "Washed",
     image: null,
   });
@@ -34,6 +46,7 @@ export default function ClothesOrganizer({ onLogout }) {
   const [newCategory, setNewCategory] = useState("");
   const [showCatPicker, setShowCatPicker] = useState(false);
   const catMenuRef = useRef(null);
+  const [user, setUser] = useState(() => getStoredUser());
 
   const statuses = ["All", "Washed", "Unwashed", "Lost/Unused"];
 
@@ -51,8 +64,11 @@ export default function ClothesOrganizer({ onLogout }) {
       if (typeof img === "string") return img; // already a URL
       const form = new FormData();
       form.append("image", img);
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
       const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
       if (!res.ok) throw new Error("Upload failed");
@@ -64,17 +80,31 @@ export default function ClothesOrganizer({ onLogout }) {
     }
   };
 
-  // Initial load from API
+  // Initial load from API with auth
   useEffect(() => {
     (async () => {
+      const token = getToken();
+      if (!token) {
+        window.location.hash = "#/signin";
+        return;
+      }
+      setUser(getStoredUser());
       try {
         const [itemsRes, catsRes] = await Promise.all([
-          fetch(`${API_URL}/items`),
-          fetch(`${API_URL}/categories`),
+          fetch(`${API_URL}/items`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/categories`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
+        if (itemsRes.status === 401 || catsRes.status === 401) {
+          window.location.hash = "#/signin";
+          return;
+        }
         const [itemsDocs, catsDocs] = await Promise.all([
-          itemsRes.json(),
-          catsRes.json(),
+          itemsRes.ok ? itemsRes.json() : Promise.resolve([]),
+          catsRes.ok ? catsRes.json() : Promise.resolve([]),
         ]);
         setItems(
           (itemsDocs || []).map((d) => ({
@@ -86,19 +116,22 @@ export default function ClothesOrganizer({ onLogout }) {
           }))
         );
         const serverCats = (catsDocs || []).map((c) => c.name);
-        if (serverCats.length) setCategories(serverCats);
+        setCategories(serverCats);
       } catch (e) {
-        console.warn("API load failed, staying in local-only mode", e);
+        console.warn("API load failed", e);
       }
     })();
   }, []);
 
   const handleAddItem = async () => {
     if (newItem.name.trim() === "") return;
+    if (!newItem.category || newItem.category.trim() === "") return; // require a category
     if (editingIndex !== null) {
       const updated = [...items];
       // Update on server
       try {
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
         const imageUrl = await uploadImageIfNeeded(newItem.image);
         const payload = {
           name: newItem.name,
@@ -109,7 +142,10 @@ export default function ClothesOrganizer({ onLogout }) {
         const id = updated[editingIndex].id;
         const res = await fetch(`${API_URL}/items/${id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -134,6 +170,8 @@ export default function ClothesOrganizer({ onLogout }) {
       // Create on server
       let created = null;
       try {
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
         const imageUrl = await uploadImageIfNeeded(newItem.image);
         const payload = {
           name: newItem.name,
@@ -143,7 +181,10 @@ export default function ClothesOrganizer({ onLogout }) {
         };
         const res = await fetch(`${API_URL}/items`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -169,7 +210,12 @@ export default function ClothesOrganizer({ onLogout }) {
   const handleDelete = async (idToDelete) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      await fetch(`${API_URL}/items/${idToDelete}`, { method: "DELETE" });
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
+      await fetch(`${API_URL}/items/${idToDelete}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
     } catch {}
     setItems((prev) => prev.filter((it) => it.id !== idToDelete));
   };
@@ -177,14 +223,30 @@ export default function ClothesOrganizer({ onLogout }) {
   const handleAddCategory = async () => {
     if (newCategory.trim() !== "" && !categories.includes(newCategory)) {
       try {
+        const token = getToken();
         const res = await fetch(`${API_URL}/categories`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ name: newCategory }),
         });
+        if (res.status === 401) {
+          window.location.hash = "#/signin";
+          return;
+        }
         if (res.ok) {
-          const saved = await res.json();
-          setCategories((prev) => Array.from(new Set([...prev, saved.name])));
+          // Reload categories from server to ensure persistence
+          const catsRes = await fetch(`${API_URL}/categories`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (catsRes.status === 401) {
+            window.location.hash = "#/signin";
+            return;
+          }
+          const cats = await catsRes.json();
+          setCategories((cats || []).map((c) => c.name));
         } else {
           setCategories((prev) => Array.from(new Set([...prev, newCategory])));
         }
@@ -202,15 +264,28 @@ export default function ClothesOrganizer({ onLogout }) {
       return;
     }
     try {
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
       await fetch(`${API_URL}/categories/${encodeURIComponent(cat)}`, {
         method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      // Reload categories from server after delete
+      const catsRes = await fetch(`${API_URL}/categories`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (catsRes.status === 401) {
+        window.location.hash = "#/signin";
+        return;
+      }
+      const cats = await catsRes.json();
+      setCategories((cats || []).map((c) => c.name));
     } catch {}
     const updatedCats = categories.filter((c) => c !== cat);
     setCategories(updatedCats);
-    // If the current draft item uses the removed category, switch it to the first available
+    // If the current draft item uses the removed category, switch it to the first available (or blank)
     if (newItem.category === cat) {
-      setNewItem({ ...newItem, category: updatedCats[0] || "Shirts" });
+      setNewItem({ ...newItem, category: updatedCats[0] || "" });
     }
   };
 
@@ -263,6 +338,11 @@ export default function ClothesOrganizer({ onLogout }) {
             </button>
           )}
         </div>
+        {user?.username && (
+          <div className="text-lg font-semibold text-gray-700 mb-2">
+            Hello, {user.username}
+          </div>
+        )}
         <input
           type="text"
           placeholder="Search by name or category..."
@@ -358,6 +438,9 @@ export default function ClothesOrganizer({ onLogout }) {
                     }
                     className="min-w-0 flex-1 p-2 border rounded-lg"
                   >
+                    <option value="" disabled>
+                      Select a category
+                    </option>
                     {/* Ensure the current value appears even if the category was removed */}
                     {!categories.includes(newItem.category) &&
                       newItem.category && (

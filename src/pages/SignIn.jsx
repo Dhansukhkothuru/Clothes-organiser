@@ -1,9 +1,11 @@
 import React, { useState } from "react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function SignIn({ onAuthed }) {
   const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5174/api";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,19 +48,43 @@ export default function SignIn({ onAuthed }) {
         <h1 className="text-2xl font-bold mb-4">Sign in</h1>
         {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
         <label className="block text-sm mb-1">Username</label>
-        <input
-          className="w-full border rounded p-2 mb-3"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
+        <div className="relative mb-3">
+          <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+            <User className="w-4 h-4" />
+          </span>
+          <input
+            className="w-full border rounded p-2 pl-9"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter username"
+          />
+        </div>
         <label className="block text-sm mb-1">Password</label>
-        <input
-          className="w-full border rounded p-2 mb-4"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <label className="flex items-center gap-2 text-sm mb-3">
+        <div className="relative mb-3">
+          <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+            <Lock className="w-4 h-4" />
+          </span>
+          <input
+            className="w-full border rounded p-2 pl-9 pr-10"
+            type={showPwd ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPwd((v) => !v)}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
+            aria-label={showPwd ? "Hide password" : "Show password"}
+          >
+            {showPwd ? (
+              <EyeOff className="w-4 h-4" />
+            ) : (
+              <Eye className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+        <label className="flex items-center gap-2 text-sm mb-3 select-none">
           <input
             type="checkbox"
             checked={remember}
