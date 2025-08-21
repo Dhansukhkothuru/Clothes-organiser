@@ -22,7 +22,7 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
 
-  - type: static
+  - type: static_site
     name: clothes-organiser-web
     plan: free
     buildCommand: npm ci && npm run build
@@ -31,4 +31,4 @@ services:
     envVars:
       # Set this to your API's external URL + /api. Adjust if your API host differs.
       - key: VITE_API_URL
-    value: https://clothes-organiser-api.onrender.com/api
+        value: https://clothes-organiser-api.onrender.com/api
