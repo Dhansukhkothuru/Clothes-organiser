@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default function ClothesOrganizer() {
+export default function ClothesOrganizer({ onLogout }) {
   const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5174/api";
   const makeId = () =>
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -251,6 +251,18 @@ export default function ClothesOrganizer() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 p-6">
       <div className="max-w-4xl mx-auto">
+        <div className="flex justify-end text-sm mb-2 gap-3">
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="px-3 py-1 rounded bg-red-100 text-red-700 border border-red-200 hover:bg-red-200"
+              title="Log out"
+            >
+              Logout
+            </button>
+          )}
+        </div>
         <input
           type="text"
           placeholder="Search by name or category..."

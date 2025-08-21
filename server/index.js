@@ -5,6 +5,8 @@ import mongoose from 'mongoose';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 app.use(cors());
@@ -12,6 +14,7 @@ app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 5174;
 const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 // ===== Uploads (local disk) =====
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
@@ -56,6 +59,16 @@ const categorySchema = new mongoose.Schema(
 const Item = mongoose.model('Item', itemSchema);
 const Category = mongoose.model('Category', categorySchema);
 
+// Users
+const userSchema = new mongoose.Schema(
+    {
+        username: { type: String, required: true, unique: true, index: true },
+        passwordHash: { type: String, required: true },
+    },
+    { timestamps: true }
+);
+const User = mongoose.model('User', userSchema, 'users');
+
 // Base + health
 app.get('/api', (_req, res) => {
     res.json({
@@ -69,8 +82,42 @@ app.get('/api/health', async (_req, res) => {
     const counts = {
         items: await Item.countDocuments().catch(() => 0),
         categories: await Category.countDocuments().catch(() => 0),
+        users: await User.countDocuments().catch(() => 0),
     };
     res.json({ connected, db, counts });
+});
+
+// Auth
+app.post('/api/auth/signup', async (req, res, next) => {
+    try {
+        const username = (req.body.username || '').trim().toLowerCase();
+        const password = req.body.password || '';
+        if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+        if (password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
+        const exists = await User.findOne({ username }).lean();
+        if (exists) return res.status(409).json({ error: 'username already exists' });
+        const passwordHash = await bcrypt.hash(password, 10);
+        const user = await User.create({ username, passwordHash });
+        const token = jwt.sign({ id: user._id, username }, JWT_SECRET, { expiresIn: '7d' });
+        res.status(201).json({ token, user: { id: user._id, username } });
+    } catch (e) {
+        next(e);
+    }
+});
+
+app.post('/api/auth/login', async (req, res, next) => {
+    try {
+        const username = (req.body.username || '').trim().toLowerCase();
+        const password = req.body.password || '';
+        const user = await User.findOne({ username });
+        if (!user) return res.status(401).json({ error: 'invalid credentials' });
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+        const token = jwt.sign({ id: user._id, username }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, user: { id: user._id, username } });
+    } catch (e) {
+        next(e);
+    }
 });
 
 // Upload endpoint (multipart/form-data field name: 'image')
