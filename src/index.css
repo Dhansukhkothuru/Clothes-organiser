@@ -11,3 +11,13 @@ body,
 #root {
     height: 100%;
 }
+
+/* Dark theme toggled via .dark on html element */
+html.dark {
+    color-scheme: dark;
+}
+
+body.dark {
+    background-color: #0b1220;
+    /* fallback for non-tailwind areas */
+}

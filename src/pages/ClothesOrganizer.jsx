@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, Droplet, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -51,6 +51,63 @@ export default function ClothesOrganizer({ onLogout }) {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const statuses = ["All", "Washed", "Unwashed", "Lost/Unused"];
+
+  const renderStatusIcon = (status) => {
+    switch (status) {
+      case "Washed":
+        return (
+          <CheckCircle
+            className="w-4 h-4 text-green-600 dark:text-green-400"
+            aria-hidden="true"
+          />
+        );
+      case "Unwashed":
+        return (
+          <Droplet
+            className="w-4 h-4 text-blue-600 dark:text-blue-400"
+            aria-hidden="true"
+          />
+        );
+      case "Lost/Unused":
+        return (
+          <Ban
+            className="w-4 h-4 text-gray-900 dark:text-gray-700"
+            aria-hidden="true"
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Status icon for item cards: black in light mode, white in dark mode
+  const renderItemStatusIcon = (status) => {
+    switch (status) {
+      case "Washed":
+        return (
+          <CheckCircle
+            className="w-4 h-4 text-black dark:text-white"
+            aria-hidden="true"
+          />
+        );
+      case "Unwashed":
+        return (
+          <Droplet
+            className="w-4 h-4 text-black dark:text-white"
+            aria-hidden="true"
+          />
+        );
+      case "Lost/Unused":
+        return (
+          <Ban
+            className="w-4 h-4 text-black dark:text-white"
+            aria-hidden="true"
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   const handleImageChange = (file) => {
     if (file) {
@@ -364,7 +421,7 @@ export default function ClothesOrganizer({ onLogout }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 p-6 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-end text-sm mb-2 gap-3">
           {onLogout && (
@@ -379,22 +436,25 @@ export default function ClothesOrganizer({ onLogout }) {
           )}
         </div>
         {user?.username && (
-          <div className="text-lg font-semibold text-gray-700 mb-2">
+          <div className="text-lg font-semibold text-gray-700 mb-2 dark:text-gray-100">
             Hello, {user.username}
           </div>
         )}
         <input
           type="text"
           placeholder="Search by name or category..."
-          className="w-full p-3 rounded-xl shadow-md border border-gray-300 mb-6"
+          className="w-full p-3 rounded-xl shadow-md border border-gray-300 mb-6 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
         {statuses.map((status, idx) => (
           <details key={status} open={status === "Washed"} className="mb-4">
-            <summary className="cursor-pointer text-lg font-semibold text-gray-700 bg-white p-3 rounded-lg shadow">
-              {status}
+            <summary className="cursor-pointer text-lg font-semibold text-gray-700 bg-white p-3 rounded-lg shadow dark:bg-gray-200 dark:text-gray-900">
+              <span className="inline-flex items-center gap-2">
+                {renderStatusIcon(status)}
+                {status}
+              </span>
             </summary>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3">
               {filteredItems(status).map((item, index) => (
@@ -414,12 +474,16 @@ export default function ClothesOrganizer({ onLogout }) {
                         className="w-24 h-24 object-cover rounded-lg mb-2"
                       />
                     )}
-                    <h3 className="font-bold">{item.name}</h3>
+                    <div className="flex items-center gap-2">
+                      {renderItemStatusIcon(item.status)}
+                      <h3 className="font-bold">{item.name}</h3>
+                    </div>
                     <p className="text-sm text-gray-500">{item.category}</p>
                     <div className="flex space-x-2 mt-2">
                       <Button
                         size="icon"
                         variant="outline"
+                        className="dark:bg-gray-200 dark:hover:bg-gray-300 dark:border-gray-300 dark:text-gray-800"
                         onClick={() => {
                           setNewItem({ ...item });
                           if (item.image) {
@@ -456,7 +520,7 @@ export default function ClothesOrganizer({ onLogout }) {
 
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-2xl w-96 shadow-lg relative">
+            <div className="bg-white p-6 rounded-2xl w-96 shadow-lg relative dark:bg-gray-800 dark:text-gray-100">
               <h2 className="text-xl font-bold mb-4">
                 {editingIndex !== null ? "Edit Item" : "Add New Item"}
               </h2>
@@ -467,7 +531,7 @@ export default function ClothesOrganizer({ onLogout }) {
                 onChange={(e) =>
                   setNewItem({ ...newItem, name: e.target.value })
                 }
-                className="w-full mb-3 p-2 border rounded-lg"
+                className="w-full mb-3 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="relative mb-3">
                 <div className="flex flex-wrap items-start gap-2">
@@ -476,7 +540,7 @@ export default function ClothesOrganizer({ onLogout }) {
                     onChange={(e) =>
                       setNewItem({ ...newItem, category: e.target.value })
                     }
-                    className="min-w-0 flex-1 p-2 border rounded-lg"
+                    className="min-w-0 flex-1 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                   >
                     <option value="" disabled>
                       Select a category
@@ -499,7 +563,7 @@ export default function ClothesOrganizer({ onLogout }) {
                     placeholder="New category"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="min-w-0 p-2 border rounded-lg flex-1"
+                    className="min-w-0 p-2 border rounded-lg flex-1 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <Button className="shrink-0" onClick={handleAddCategory}>
                     Add
@@ -548,7 +612,7 @@ export default function ClothesOrganizer({ onLogout }) {
                 onChange={(e) =>
                   setNewItem({ ...newItem, status: e.target.value })
                 }
-                className="w-full mb-3 p-2 border rounded-lg"
+                className="w-full mb-3 p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
               >
                 <option value="Washed">Washed</option>
                 <option value="Unwashed">Unwashed</option>
@@ -652,7 +716,7 @@ export default function ClothesOrganizer({ onLogout }) {
         )}
 
         <Button
-          className="fixed bottom-6 right-6 rounded-full shadow-lg p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+          className="fixed bottom-6 right-6 rounded-full shadow-lg p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white dark:from-gray-200 dark:to-gray-300 dark:text-gray-900"
           onClick={() => {
             // Ensure a fresh form when opening Add
             setNewItem(makeBlankItem());

@@ -4,6 +4,7 @@ import "./index.css";
 import ClothesOrganizer from "./pages/ClothesOrganizer";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import ThemeToggle from "./components/ui/theme-toggle";
 
 function AppRouter() {
   const [route, setRoute] = React.useState(
@@ -15,6 +16,15 @@ function AppRouter() {
     return Boolean(token);
   });
   const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5174/api";
+  // Initialize theme once at app start
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem("theme");
+      const root = document.documentElement;
+      if (stored === "dark") root.classList.add("dark");
+      else root.classList.remove("dark");
+    } catch {}
+  }, []);
   React.useEffect(() => {
     const onHash = () => setRoute(window.location.hash.slice(2) || "");
     window.addEventListener("hashchange", onHash);
@@ -55,19 +65,34 @@ function AppRouter() {
     goHome();
   };
 
-  if (route === "signin") return <SignIn onAuthed={onAuthed} />;
-  if (route === "signup") return <SignUp onAuthed={onAuthed} />;
+  if (route === "signin")
+    return (
+      <>
+        <ThemeToggle />
+        <SignIn onAuthed={onAuthed} />
+      </>
+    );
+  if (route === "signup")
+    return (
+      <>
+        <ThemeToggle />
+        <SignUp onAuthed={onAuthed} />
+      </>
+    );
   return (
-    <ClothesOrganizer
-      onLogout={() => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        sessionStorage.removeItem("token");
-        sessionStorage.removeItem("user");
-        setAuthed(false);
-        window.location.hash = "#/signin";
-      }}
-    />
+    <>
+      <ThemeToggle />
+      <ClothesOrganizer
+        onLogout={() => {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("token");
+          sessionStorage.removeItem("user");
+          setAuthed(false);
+          window.location.hash = "#/signin";
+        }}
+      />
+    </>
   );
 }
 

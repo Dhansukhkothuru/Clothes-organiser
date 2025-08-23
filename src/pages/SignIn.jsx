@@ -40,20 +40,20 @@ export default function SignIn({ onAuthed }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 dark:bg-gray-900">
       <form
         onSubmit={submit}
-        className="bg-white w-full max-w-sm p-6 rounded-2xl shadow"
+        className="bg-white w-full max-w-sm p-6 rounded-2xl shadow dark:bg-gray-800 dark:text-gray-100"
       >
         <h1 className="text-2xl font-bold mb-4">Sign in</h1>
-        {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
+        {error && <div className="text-red-400 text-sm mb-3">{error}</div>}
         <label className="block text-sm mb-1">Username</label>
         <div className="relative mb-3">
           <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
             <User className="w-4 h-4" />
           </span>
           <input
-            className="w-full border rounded p-2 pl-9"
+            className="w-full border rounded p-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter username"
@@ -65,7 +65,7 @@ export default function SignIn({ onAuthed }) {
             <Lock className="w-4 h-4" />
           </span>
           <input
-            className="w-full border rounded p-2 pl-9 pr-10"
+            className="w-full border rounded p-2 pl-9 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             type={showPwd ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -74,7 +74,7 @@ export default function SignIn({ onAuthed }) {
           <button
             type="button"
             onClick={() => setShowPwd((v) => !v)}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-300"
             aria-label={showPwd ? "Hide password" : "Show password"}
           >
             {showPwd ? (
@@ -100,7 +100,7 @@ export default function SignIn({ onAuthed }) {
         </button>
         <div className="text-sm mt-3">
           No account?{" "}
-          <a className="text-indigo-600" href="#/signup">
+          <a className="text-indigo-400" href="#/signup">
             Create one
           </a>
         </div>
