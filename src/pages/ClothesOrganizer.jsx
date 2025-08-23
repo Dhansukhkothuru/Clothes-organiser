@@ -423,7 +423,7 @@ export default function ClothesOrganizer({ onLogout }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 p-6 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-end text-sm mb-2 gap-3">
+        <div className="flex justify-end text-sm mb-2 gap-3 pr-16 sm:pr-0">
           {onLogout && (
             <button
               type="button"
