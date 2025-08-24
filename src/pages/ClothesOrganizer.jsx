@@ -579,7 +579,7 @@ export default function ClothesOrganizer({ onLogout }) {
                 {showCatPicker && (
                   <div
                     ref={catMenuRef}
-                    className="absolute right-0 mt-2 w-72 bg-white border rounded-xl shadow-lg p-3 z-50"
+                    className="absolute right-0 mt-2 w-72 bg-white border rounded-xl shadow-lg p-3 z-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                     role="menu"
                     aria-label="Manage categories"
                   >
@@ -587,7 +587,7 @@ export default function ClothesOrganizer({ onLogout }) {
                       {categories.map((cat) => (
                         <div
                           key={cat}
-                          className="flex items-center justify-between bg-gray-50 border rounded-lg px-2 py-1"
+                          className="flex items-center justify-between bg-gray-50 border rounded-lg px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
                         >
                           <span className="truncate" title={cat}>
                             {cat}
@@ -595,7 +595,7 @@ export default function ClothesOrganizer({ onLogout }) {
                           <button
                             type="button"
                             onClick={() => handleDeleteCategory(cat)}
-                            className={`text-red-600 hover:text-red-700 disabled:opacity-40 disabled:cursor-not-allowed`}
+                            className={`text-red-600 hover:text-red-700 disabled:opacity-40 disabled:cursor-not-allowed dark:text-red-400 dark:hover:text-red-300`}
                             disabled={categories.length <= 1}
                             title={`Delete ${cat}`}
                           >
